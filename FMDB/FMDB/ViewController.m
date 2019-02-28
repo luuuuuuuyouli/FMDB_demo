@@ -8,8 +8,13 @@
 
 #import "ViewController.h"
 #import <FMDatabase.h>
+#import "FMDatabaseQueue.h"
 
 @interface ViewController ()
+
+@property (nonnull, strong) FMDatabaseQueue * queue;
+
+@property (nonatomic,strong) UIImageView *imageView;
 
 @end
 
@@ -43,18 +48,44 @@
     [changeBtn addTarget:self action:@selector(action_change) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:changeBtn];
     
-    NSString *path = [NSString stringWithFormat:@"%@/Documents/%@",NSHomeDirectory(),[NSString stringWithFormat:@"shopping%@.db",@"0001"]];
-    // 找到路径下的数据库文件， 如果没有就会重新创建一个
-    FMDatabase *dataBase = [FMDatabase databaseWithPath:path];
-    if ([dataBase open]) {
-        NSString *sql = @"create table if not exists t_student ('ID' INTEGER PRIMARY KEY AUTOINCREMENT,'name' TEXT NOT NULL, 'phone' TEXT NOT NULL,'score' INTEGER NOT NULL)";
-        BOOL result = [dataBase executeUpdate:sql];
-        if (result) {
-            NSLog(@"create table success");
+    _imageView = [[UIImageView alloc]init];
+    _imageView.frame = CGRectMake(100, 500, 100, 100);
+    [self.view addSubview:_imageView];
+    
+//    NSString *path = [NSString stringWithFormat:@"%@/Documents/%@",NSHomeDirectory(),[NSString stringWithFormat:@"shopping%@.db",@"0001"]];
+//    // 找到路径下的数据库文件， 如果没有就会重新创建一个
+//    FMDatabase *dataBase = [FMDatabase databaseWithPath:path];
+//    if ([dataBase open]) {
+//        NSString *sql = @"create table if not exists t_student ('ID' INTEGER PRIMARY KEY AUTOINCREMENT,'name' TEXT NOT NULL, 'phone' TEXT NOT NULL,'score' INTEGER NOT NULL,'image' image blob)";
+//        BOOL result = [dataBase executeUpdate:sql];
+//        if (result) {
+//            NSLog(@"create table success");
+//
+//        }
+//        [dataBase close];
+//    }
+    //数据库在沙盒中的路径
+    NSString * fileName = [[NSSearchPathForDirectoriesInDomains(13, 1, 1)lastObject]stringByAppendingPathComponent:@"testOfFMDB.sqlite"];
+    NSLog(@"%@",fileName);
+    
+    //创建数据库
+    self.queue = [FMDatabaseQueue databaseQueueWithPath:fileName];
+    
+    [self.queue inDatabase:^(FMDatabase *db) {
+        
+        if ([db open]) {
             
+            BOOL createTable = [db executeUpdate:@"create table if not exists t_student ('ID' INTEGER PRIMARY KEY AUTOINCREMENT,'name' TEXT NOT NULL, 'phone' TEXT NOT NULL,'score' INTEGER NOT NULL,image)"];
+            if (createTable) {
+                NSLog(@"创建表成功");
+            }
+            else{
+                NSLog(@"创建表失败");
+            }
         }
-        [dataBase close];
-    }
+        
+        [db close];
+    }];
 }
 
 - (void)searchDataFMDB{
@@ -168,19 +199,133 @@
 
 
 - (void)action_search{
-    [self searchDataFMDB];
+    //[self searchDataFMDB];
+    [self search];
 }
 
 - (void)action_del{
-    [self deleteFMDB];
+   // [self deleteFMDB];
 }
 
 - (void)action_add{
-    [self addDataFMDB];
+   // [self addDataFMDB];
+    [self insert];
 }
 
 - (void)action_change{
-    [self changeDataFMDB];
+   // [self changeDataFMDB];
 }
+
+- (void)insert{
+    
+    [self.queue inDatabase:^(FMDatabase *db) {
+        
+        if ([db open]) {
+            NSData * data = UIImageJPEGRepresentation([UIImage imageNamed:@"CX.jpg"], 0.1f);
+            //sy
+            NSData *data1 = UIImageJPEGRepresentation([UIImage imageNamed:@"sy.jpg"], 0.1f);
+            NSArray *array = @[data,data1];
+            BOOL flag = [db executeUpdate:@"INSERT INTO t_student(ID,name,phone,score,image) VALUES (?,?,?,?,?);",@"1001",@"shenyong",@"110",@"99",array];
+            
+            if (flag) {
+                NSLog(@"插入成功");
+            }else{
+                NSLog(@"插入失败");
+            }
+        }
+        [db close];
+    }];
+}
+- (void)search{
+    
+    [self.queue inDatabase:^(FMDatabase *db) {
+        
+        if ([db open]) {
+            //返回查询数据的结果集
+            FMResultSet * resultSet = [db executeQuery:@"select * from t_student"];
+            //查询表中的每一个记录
+            while ([resultSet next]) {
+                
+//                NSLog(@"%@",[resultSet stringForColumnIndex:0]);
+//                NSLog(@"%@",[resultSet stringForColumnIndex:1]);
+//                NSLog(@"%@",[resultSet stringForColumnIndex:2]);
+//                NSLog(@"%@",[resultSet stringForColumnIndex:3]);
+               // NSLog(@"%@",[resultSet stringForColumnIndex:4]);
+//
+//                NSLog(@"+++++++%@",[resultSet resultDictionary]);
+                
+               // NSString *ceshi = @"11 <<12321321>";
+                
+                
+                NSString *string = [resultSet stringForColumnIndex:4];
+                
+                NSLog(@"%@",string);
+                
+//                NSArray *array = [[resultSet stringForColumnIndex:4] componentsSeparatedByString:@","];
+//
+//                NSLog(@"%@",array[0]);
+
+             
+//                NSData *data = [self convertHexStrToData:arr[0]];
+//
+//                UIImage * image = [UIImage imageWithData:data];
+//
+//                self.imageView.image = image;
+                
+
+                
+            }
+            
+        }
+        [db close];
+    }];
+
+   
+}
+
+- (NSString *)hexStringFromString:(NSString *)string{
+    NSData *myD = [string dataUsingEncoding:NSUTF8StringEncoding];
+    Byte *bytes = (Byte *)[myD bytes];
+    //下面是Byte 转换为16进制。
+    NSString *hexStr=@"";
+    for(int i=0;i<[myD length];i++)
+    {
+        NSString *newHexStr = [NSString stringWithFormat:@"%x",bytes[i]&0xff];///16进制数
+        if([newHexStr length]==1)
+            hexStr = [NSString stringWithFormat:@"%@0%@",hexStr,newHexStr];
+        else
+            hexStr = [NSString stringWithFormat:@"%@%@",hexStr,newHexStr];
+    }
+    return hexStr;
+}
+
+- (NSData *)convertHexStrToData:(NSString *)str
+{
+    if (!str || [str length] == 0) {
+        return nil;
+    }
+    
+    NSMutableData *hexData = [[NSMutableData alloc] initWithCapacity:20];
+    NSRange range;
+    if ([str length] % 2 == 0) {
+        range = NSMakeRange(0, 2);
+    } else {
+        range = NSMakeRange(0, 1);
+    }
+    for (NSInteger i = range.location; i < [str length]; i += 2) {
+        unsigned int anInt;
+        NSString *hexCharStr = [str substringWithRange:range];
+        NSScanner *scanner = [[NSScanner alloc] initWithString:hexCharStr];
+        
+        [scanner scanHexInt:&anInt];
+        NSData *entity = [[NSData alloc] initWithBytes:&anInt length:1];
+        [hexData appendData:entity];
+        
+        range.location += range.length;
+        range.length = 2;
+    }
+    return hexData;
+}
+
 
 @end
